@@ -1,5 +1,6 @@
 package com.example.mobilereader.ui.reader
 
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.horizontalScroll
@@ -63,6 +64,7 @@ fun SelectionToolbar(
     onQuote: () -> Unit,
     onTranslate: () -> Unit,
     onCopy: () -> Unit,
+    onAnalyze: () -> Unit,
 ) {
     if (!controller.active || controller.dragging) return
 
@@ -171,6 +173,11 @@ fun SelectionToolbar(
                     label = stringResource(R.string.selection_copy),
                     icon = { Icon(Icons.Rounded.ContentCopy, contentDescription = null) },
                     onClick = onCopy,
+                )
+                ToolbarAction(
+                    label = "Разбор ИИ",
+                    icon = { Icon(Icons.Rounded.AutoAwesome, contentDescription = null) },
+                    onClick = onAnalyze,
                 )
             }
         }

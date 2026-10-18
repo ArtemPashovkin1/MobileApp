@@ -1,6 +1,9 @@
 package com.example.mobilereader.ui.reader
 
+import com.example.mobilereader.data.analysis.extractParagraph
 import com.example.mobilereader.ui.translation.rememberTranslationAction
+import com.example.mobilereader.data.analysis.AnalyzeRequest
+import com.example.mobilereader.ui.analysis.AiExplanationSheet
 import androidx.activity.compose.LocalActivity
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -394,6 +397,7 @@ private fun ReaderContent(
     var searchVisible by rememberSaveable { mutableStateOf(false) }
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var searchHighlight by remember { mutableStateOf<String?>(null) }
+    var aiRequest by remember { mutableStateOf<AnalyzeRequest?>(null) }
     LaunchedEffect(searchQuery) {
         delay(150.milliseconds)
         viewModel.search(searchQuery)
@@ -843,7 +847,30 @@ private fun ReaderContent(
                 }
                 selection.clear()
             },
+            onAnalyze = {
+                val selected = selectedText()
+                if (selected.isNotEmpty()) {
+                    val sel = selection.selection
+                    val pageText = if (sel != null) {
+                        val startIdx = sel.start.itemIndex
+                        val endIdx = sel.end.itemIndex
+                        ready.items
+                            .subList(
+                                startIdx.coerceAtLeast(0),
+                                (endIdx + 1).coerceAtMost(ready.items.size)
+                            )
+                            .joinToString("\n") { it.element?.toString() ?: "" }
+                    } else selected
+                    aiRequest = AnalyzeRequest(
+                        selected_text = selected,
+                        context = extractParagraph(pageText, selected),
+                    )
+                }
+                selection.clear()
+            },
         )
+
+        AiExplanationSheet(request = aiRequest) { aiRequest = null }
 
         BrightnessOverlay(
             brightness = brightness,
