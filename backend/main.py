@@ -1,17 +1,18 @@
 import json
 import os
-
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from openai import AsyncOpenAI
 from pydantic import BaseModel
+
+# Импортируем актуальные классы из новой версии SDK
+from gigachat import GigaChat
+from gigachat.models import ChatCompletionRequest, ChatMessage
 
 load_dotenv()
 
-API_KEY = os.getenv("LLM_API_KEY", "")
-BASE_URL = os.getenv("LLM_BASE_URL", "https://api.openai.com/v1")
-MODEL = os.getenv("LLM_MODEL", "gpt-4o-mini")
+GIGACHAT_CREDENTIALS = os.getenv("LLM_API_KEY", "")
+GIGACHAT_MODEL = os.getenv("LLM_MODEL", "GigaChat")
 
 app = FastAPI(title="Smart Reader Backend")
 
@@ -22,7 +23,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-client = AsyncOpenAI(api_key=API_KEY, base_url=BASE_URL)
+# Инициализируем клиент с указанием модели
+gc_client = GigaChat(
+    credentials=GIGACHAT_CREDENTIALS,
+    verify_ssl_certs=False,
+    model=GIGACHAT_MODEL  # Явно указываем модель
+)
 
 
 class AnalyzeRequest(BaseModel):
@@ -59,11 +65,11 @@ SYSTEM_PROMPT = """Ты — профессиональный филолог-пе
 
 @app.get("/api/health")
 async def health():
-    return {"status": "ok", "model": MODEL}
+    return {"status": "ok", "model": GIGACHAT_MODEL}
 
 
 @app.post("/api/analyze", response_model=AnalyzeResponse)
-async def analyze(req: AnalyzeRequest):
+def analyze(req: AnalyzeRequest):
     if not req.selected_text.strip():
         raise HTTPException(status_code=400, detail="пустой selected_text")
     if not req.context.strip():
@@ -72,22 +78,38 @@ async def analyze(req: AnalyzeRequest):
     user_prompt = f'Книга: {req.book_title or "неизвестна"}.\nАбзац: "{req.context}"\nВыделено: "{req.selected_text}"'
 
     try:
-        resp = await client.chat.completions.create(
-            model=MODEL,
+        # Передаём модель в запросе (приоритет над дефолтной)
+        request = ChatCompletionRequest(
+            model=GIGACHAT_MODEL,
             messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": user_prompt},
-            ],
-            response_format={"type": "json_object"},
+                ChatMessage(role="system", content=SYSTEM_PROMPT),
+                ChatMessage(role="user", content=user_prompt)
+            ]
         )
-    except Exception:
+        response = gc_client.chat.create(request)
+    except Exception as e:
+        print(f" Ошибка GigaChat API: {e}")
         raise HTTPException(status_code=502, detail="llm unavailable")
 
-    raw = resp.choices[0].message.content
+    # В новом API ответ лежит в response.messages[0].content[0].text
+    raw = response.messages[0].content[0].text
+    
+    # Очистка от markdown-блоков, если модель всё же их добавила
+    if raw and raw.startswith("```"):
+        raw = raw.split("```json", 1)[-1].split("```", 1)[0].strip()
+    elif raw and raw.startswith("```"):
+        raw = raw.split("```", 1)[-1].split("```", 1)[0].strip()
+
     try:
         data = json.loads(raw)
     except json.JSONDecodeError:
-        data = {"meaning": raw, "translation": "", "nuance": "", "tone": ""}
+        print(f"⚠️ Не удалось распарсить JSON. Сырой ответ: {raw}")
+        data = {
+            "meaning": raw[:100] + "...", 
+            "translation": "Ошибка формата", 
+            "nuance": "", 
+            "tone": ""
+        }
 
     return AnalyzeResponse(
         meaning=str(data.get("meaning", "")),
@@ -101,10 +123,5 @@ async def analyze(req: AnalyzeRequest):
 async def illustrate(req: IllustrateRequest):
     if not req.context.strip():
         raise HTTPException(status_code=400, detail="пустой context")
-    prompt = "atmospheric book illustration, no text: " + req.context[:800]
-    try:
-        resp = await client.images.generate(model="gpt-image-1", prompt=prompt, size="512x512")
-        url = resp.data[0].url
-    except Exception:
-        raise HTTPException(status_code=502, detail="image model unavailable")
-    return {"image_url": url}
+    
+    raise HTTPException(status_code=501, detail="Image generation is not supported by current LLM provider")
