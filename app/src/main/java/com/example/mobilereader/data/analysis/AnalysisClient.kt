@@ -28,7 +28,7 @@ data class AnalyzeResult(
 
 object AnalysisClient {
     // адрес сервера на компьютере (10.0.2.2 это localhost для эмулятора)
-    private const val BASE_URL = "http://10.0.2.2:8000"
+    private const val BASE_URL = "http://192.168.1.108:8000"
     private val json = Json { ignoreUnknownKeys = true }
 
     suspend fun analyze(request: AnalyzeRequest): AnalyzeResult = withContext(Dispatchers.IO) {
