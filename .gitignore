@@ -1,4 +1,32 @@
+# === Секреты и ключи ===
 .env
+*.env.local
+token.txt
+*.key
+*.secret
+
+# === Python ===
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+venv/
+.venv/
+env/
+*.egg-info/
+dist/
+.pytest_cache/
+
+# === Сертификаты (не коммитим!) ===
+certs/*.pem
+certs/*.crt
+certs/ca_bundle.pem
+
+# === Логи ===
+*.log
+test_log.txt
+
+# === Android ===
 *.iml
 .gradle/
 .idea/
@@ -8,19 +36,12 @@ local.properties
 /app/build/
 *.apk
 
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-venv/
-.venv/
-env/
-
-token.txt
-*.key
-*.secret
-
-*.log
-
+# === OS ===
 .DS_Store
 Thumbs.db
+
+# === Локальные файлы, которые НЕ должны попадать в Git ===
+backend/certs/
+test_log.txt
+backend/test_log.txt
+*.log

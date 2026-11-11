@@ -9,6 +9,7 @@ if backend_dir not in sys.path:
     sys.path.insert(0, backend_dir)
 
 from .base import LLMAdapter, AnalysisResult
+from tls_config import get_verify_setting
 
 try:
     from .prompts import SYSTEM_PROMPT, build_user_prompt
@@ -19,17 +20,18 @@ except ImportError:
 class OpenAICompatibleAdapter(LLMAdapter):
     name = "openai_compatible"
 
-    def __init__(self, base_url: str, model: str, api_key: str):
+    def __init__(self, base_url: str, model: str, api_key: str, timeout: float = 60.0):
         self.endpoint = base_url.rstrip("/") + "/chat/completions"
         self.model = model
         self.api_key = api_key
+        self.timeout = timeout
+        self.verify = get_verify_setting()
 
     def analyze(self, selected_text: str, context: str, book_title: str, language: str) -> AnalysisResult:
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json"
         }
-
         payload = {
             "model": self.model,
             "messages": [
@@ -37,18 +39,13 @@ class OpenAICompatibleAdapter(LLMAdapter):
                 {"role": "user", "content": build_user_prompt(selected_text, context, book_title)}
             ]
         }
-
         try:
             response = requests.post(
-                self.endpoint,
-                json=payload,
-                headers=headers,
-                verify=False,
-                timeout=60.0
+                self.endpoint, json=payload, headers=headers,
+                verify=self.verify, timeout=self.timeout
             )
             response.raise_for_status()
             data = response.json()
-
             raw = data["choices"][0]["message"]["content"].strip()
 
             if raw.startswith("```"):
@@ -57,12 +54,7 @@ class OpenAICompatibleAdapter(LLMAdapter):
             try:
                 parsed_data = json.loads(raw)
             except json.JSONDecodeError:
-                parsed_data = {
-                    "meaning": raw[:100] + "...",
-                    "translation": "Ошибка формата",
-                    "nuance": "",
-                    "tone": ""
-                }
+                parsed_data = {"meaning": raw[:100], "translation": "Ошибка формата", "nuance": "", "tone": ""}
 
             return AnalysisResult(
                 meaning=str(parsed_data.get("meaning", "")),
@@ -70,6 +62,7 @@ class OpenAICompatibleAdapter(LLMAdapter):
                 nuance=str(parsed_data.get("nuance", "")),
                 tone=str(parsed_data.get("tone", "")),
             )
+        except requests.exceptions.Timeout:
+            raise TimeoutError("Провайдер не ответил вовремя (тайм-аут)")
         except requests.exceptions.RequestException as e:
-            print(f"Ошибка OpenAI-совместимого запроса: {e}")
-            raise Exception("LLM unavailable")
+            raise Exception(f"Ошибка сети: {type(e).__name__}")

@@ -7,6 +7,10 @@ backend_dir = os.path.dirname(current_dir)
 if backend_dir not in sys.path:
     sys.path.insert(0, backend_dir)
 
+# ✅ Инициализация TLS ДО импорта GigaChat!
+from tls_config import setup_tls_environment
+setup_tls_environment()
+
 from gigachat import GigaChat
 from gigachat.models import ChatCompletionRequest, ChatMessage
 from .base import LLMAdapter, AnalysisResult
@@ -20,11 +24,12 @@ except ImportError:
 class GigaChatAdapter(LLMAdapter):
     name = "gigachat"
 
-    def __init__(self, credentials: str, model: str):
+    def __init__(self, credentials: str, model: str, timeout: float = 60.0):
         self.client = GigaChat(
             credentials=credentials,
-            verify_ssl_certs=False,
-            model=model
+            verify_ssl_certs=True,
+            model=model,
+            timeout=timeout
         )
         self.model = model
 
